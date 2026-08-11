@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Machine Learning
+*.pt
+*.pth
+*.ckpt
+
+# Generated results
+results/models/*
+results/plots/*
+results/benchmarks/*
+
+# Python build
+build/
+dist/
+*.egg-info/
+
+# Environment files
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+bin/
+vendor/
+
+# Go test coverage
+*.out
+
+# Logs
+*.log
