@@ -65,6 +65,16 @@ class GoGridWorld:
         ]
         self.library.StepEnvironment.restype = ctypes.c_int
 
+        self.library.RunBatch.argtypes = [
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_int),
+        ]
+
+        self.library.RunBatch.restype = ctypes.c_int
+        
     def reset(self) -> int:
         state = self.library.ResetEnvironment()
 
@@ -90,7 +100,53 @@ class GoGridWorld:
             raise RuntimeError("Failed to execute environment step.")
 
         return state, reward.value, bool(done.value)
+    def batch_step(
+        self,
+        actions: list[int],
+    ) -> tuple[list[int], list[float], list[bool]]:
+        if not actions:
+            return [], [], []
 
+        if any(action not in range(4) for action in actions):
+            raise ValueError("Invalid action in batch.")
+
+        action_array = (ctypes.c_int * len(actions))(
+            *actions
+        )
+
+        states_array = (
+            ctypes.c_int * len(actions)
+        )()
+
+        rewards_array = (
+            ctypes.c_double * len(actions)
+        )()
+
+        dones_array = (
+            ctypes.c_int * len(actions)
+        )()
+
+        result = self.library.RunBatch(
+            action_array,
+            len(actions),
+            states_array,
+            rewards_array,
+            dones_array,
+        )
+
+        if result < 0:
+            raise RuntimeError(
+                "Failed to execute batch."
+            )
+
+        states = list(states_array)
+        rewards = list(rewards_array)
+        dones = [
+            bool(value)
+            for value in dones_array
+        ]
+
+        return states, rewards, dones
 
 if __name__ == "__main__":
     environment = GoGridWorld()

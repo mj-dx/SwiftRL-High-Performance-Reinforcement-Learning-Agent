@@ -78,23 +78,46 @@ def benchmark_environment(
 ) -> float:
     actions = [0, 1, 2, 3]
 
-    state = environment.reset()
+    environment.reset()
 
     start_time = time.perf_counter()
 
     for index in range(steps):
         action = actions[index % len(actions)]
 
-        state, reward, done = environment.step(action)
+        _, _, done = environment.step(action)
 
         if done:
-            state = environment.reset()
+            environment.reset()
 
     elapsed = time.perf_counter() - start_time
 
-    steps_per_second = steps / elapsed
+    return steps / elapsed
 
-    return steps_per_second
+
+def benchmark_go_batch(
+    environment: GoGridWorld,
+    steps: int,
+    batch_size: int = 1000,
+) -> float:
+    actions = [0, 1, 2, 3]
+
+    batches = steps // batch_size
+
+    batch = [
+        actions[index % len(actions)]
+        for index in range(batch_size)
+    ]
+
+    start_time = time.perf_counter()
+
+    for _ in range(batches):
+        environment.reset()
+        environment.batch_step(batch)
+
+    elapsed = time.perf_counter() - start_time
+
+    return steps / elapsed
 
 
 def main() -> None:
@@ -120,23 +143,40 @@ def main() -> None:
         steps,
     )
 
-    speedup = go_speed / python_speed
+    go_batch_speed = benchmark_go_batch(
+        go_environment,
+        steps,
+    )
+
+    go_speedup = go_speed / python_speed
+    batch_speedup = go_batch_speed / python_speed
 
     print()
     print("Environment Benchmark")
-    print("=" * 50)
+    print("=" * 55)
     print(f"Total steps: {steps:,}")
     print()
     print(
-        f"Python Environment: "
+        f"Python Environment:   "
         f"{python_speed:,.2f} steps/sec"
     )
     print(
-        f"Go Environment:     "
+        f"Go Environment:       "
         f"{go_speed:,.2f} steps/sec"
     )
+    print(
+        f"Go Batch Environment: "
+        f"{go_batch_speed:,.2f} steps/sec"
+    )
     print()
-    print(f"Go speedup: {speedup:.2f}x")
+    print(
+        f"Go speedup:       "
+        f"{go_speedup:.2f}x"
+    )
+    print(
+        f"Go Batch speedup: "
+        f"{batch_speedup:.2f}x"
+    )
 
 
 if __name__ == "__main__":
