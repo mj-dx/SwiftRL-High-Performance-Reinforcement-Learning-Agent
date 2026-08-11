@@ -1,143 +1,110 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Tuple
-
-import numpy as np
+import ctypes
+from pathlib import Path
 
 
-Position = Tuple[int, int]
+class GoGridWorld:
+    ACTION_UP = 0
+    ACTION_DOWN = 1
+    ACTION_LEFT = 2
+    ACTION_RIGHT = 3
 
+    def __init__(
+        self,
+        rows: int = 6,
+        cols: int = 6,
+        step_reward: float = -1.0,
+        obstacle_reward: float = -10.0,
+        goal_reward: float = 100.0,
+    ) -> None:
+        self.rows = rows
+        self.cols = cols
 
-@dataclass
-class GridWorldConfig:
-    rows: int = 6
-    cols: int = 6
-    step_reward: float = -1.0
-    obstacle_reward: float = -10.0
-    goal_reward: float = 100.0
+        library_path = (
+            Path(__file__).resolve().parent.parent
+            / "go"
+            / "bindings"
+            / "gridworld.dll"
+        )
 
+        if not library_path.exists():
+            raise FileNotFoundError(
+                f"Go shared library not found: {library_path}"
+            )
 
-class GridWorld:
-    ACTIONS = {
-        0: (-1, 0),  # Up
-        1: (1, 0),   # Down
-        2: (0, -1),  # Left
-        3: (0, 1),   # Right
-    }
+        self.library = ctypes.CDLL(str(library_path))
 
-    def __init__(self, config: GridWorldConfig | None = None) -> None:
-        self.config = config or GridWorldConfig()
+        self._configure_functions()
 
-        self.rows = self.config.rows
-        self.cols = self.config.cols
+        self.library.CreateEnvironment(
+            rows,
+            cols,
+            step_reward,
+            obstacle_reward,
+            goal_reward,
+        )
 
-        self.start: Position = (0, 0)
-        self.goal: Position = (self.rows - 1, self.cols - 1)
+    def _configure_functions(self) -> None:
+        self.library.CreateEnvironment.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_double,
+            ctypes.c_double,
+            ctypes.c_double,
+        ]
+        self.library.CreateEnvironment.restype = None
 
-        self.obstacles: set[Position] = {
-            (1, 1),
-            (1, 3),
-            (2, 3),
-            (3, 1),
-            (4, 1),
-            (4, 4),
-        }
+        self.library.ResetEnvironment.argtypes = []
+        self.library.ResetEnvironment.restype = ctypes.c_int
 
-        self.agent_position: Position = self.start
-        self.done = False
+        self.library.StepEnvironment.argtypes = [
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_int),
+        ]
+        self.library.StepEnvironment.restype = ctypes.c_int
 
-    def reset(self) -> Position:
-        """Reset the environment and return the initial state."""
-        self.agent_position = self.start
-        self.done = False
+    def reset(self) -> int:
+        state = self.library.ResetEnvironment()
 
-        return self.get_state()
+        if state < 0:
+            raise RuntimeError("Failed to reset Go environment.")
 
-    def get_state(self) -> Position:
-        """Return the current agent position."""
-        return self.agent_position
+        return state
 
-    def step(self, action: int) -> tuple[Position, float, bool]:
-        """
-        Execute an action.
-
-        Returns:
-            next_state: The new agent position.
-            reward: Reward received after the action.
-            done: Whether the episode has finished.
-        """
-        if self.done:
-            raise RuntimeError("Episode has already finished. Call reset().")
-
-        if action not in self.ACTIONS:
+    def step(self, action: int) -> tuple[int, float, bool]:
+        if action not in range(4):
             raise ValueError(f"Invalid action: {action}")
 
-        row, col = self.agent_position
-        row_delta, col_delta = self.ACTIONS[action]
+        reward = ctypes.c_double()
+        done = ctypes.c_int()
 
-        new_position = (
-            row + row_delta,
-            col + col_delta,
+        state = self.library.StepEnvironment(
+            action,
+            ctypes.byref(reward),
+            ctypes.byref(done),
         )
 
-        if not self._is_valid_position(new_position):
-            return self.agent_position, self.config.obstacle_reward, False
+        if state < 0:
+            raise RuntimeError("Failed to execute environment step.")
 
-        self.agent_position = new_position
-
-        if self.agent_position == self.goal:
-            self.done = True
-            return self.agent_position, self.config.goal_reward, True
-
-        return self.agent_position, self.config.step_reward, False
-
-    def _is_valid_position(self, position: Position) -> bool:
-        """Check whether a position is inside the grid and not an obstacle."""
-        row, col = position
-
-        if row < 0 or row >= self.rows:
-            return False
-
-        if col < 0 or col >= self.cols:
-            return False
-
-        if position in self.obstacles:
-            return False
-
-        return True
-
-    def render(self) -> None:
-        """Print the current environment state."""
-        grid = np.full(
-            (self.rows, self.cols),
-            ".",
-            dtype="<U1",
-        )
-
-        for obstacle in self.obstacles:
-            row, col = obstacle
-            grid[row, col] = "#"
-
-        goal_row, goal_col = self.goal
-        grid[goal_row, goal_col] = "G"
-
-        agent_row, agent_col = self.agent_position
-        grid[agent_row, agent_col] = "A"
-
-        print()
-        for row in grid:
-            print(" ".join(row))
-        print()
+        return state, reward.value, bool(done.value)
 
 
 if __name__ == "__main__":
-    environment = GridWorld()
+    environment = GoGridWorld()
 
-    environment.reset()
-    environment.render()
+    state = environment.reset()
 
-    actions = [3, 3, 1, 1, 1, 1, 3, 3, 1]
+    print(f"Initial state: {state}")
+
+    actions = [
+        GoGridWorld.ACTION_RIGHT,
+        GoGridWorld.ACTION_RIGHT,
+        GoGridWorld.ACTION_DOWN,
+        GoGridWorld.ACTION_DOWN,
+    ]
 
     for action in actions:
         state, reward, done = environment.step(action)
@@ -148,8 +115,6 @@ if __name__ == "__main__":
             f"Reward: {reward} | "
             f"Done: {done}"
         )
-
-        environment.render()
 
         if done:
             break
