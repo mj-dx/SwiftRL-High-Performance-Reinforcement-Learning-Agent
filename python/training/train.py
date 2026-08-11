@@ -82,6 +82,13 @@ def train(
     print(f"Episodes per second: {episodes / elapsed_time:.2f}")
 
     save_training_plot(rewards_per_episode)
+    model_dir = Path("results/models")
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    model_path = model_dir / "q_learning.npy"
+    agent.save(str(model_path))
+
+    print(f"Model saved to: {model_path}")
 
     return agent
 
