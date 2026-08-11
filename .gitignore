@@ -47,5 +47,11 @@ vendor/
 # Go test coverage
 *.out
 
+# Go shared libraries
+*.dll
+*.so
+*.dylib
+
+
 # Logs
 *.log
