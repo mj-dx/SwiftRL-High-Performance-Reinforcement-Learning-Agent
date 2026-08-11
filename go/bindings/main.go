@@ -66,6 +66,50 @@ func StepEnvironment(
 	return C.int(encodePosition(state))
 }
 
+//export RunBatch
+func RunBatch(
+	actions *C.int,
+	actionCount C.int,
+	states *C.int,
+	rewards *C.double,
+	dones *C.int,
+) C.int {
+	if env == nil {
+		return -1
+	}
+
+	count := int(actionCount)
+
+	actionSlice := unsafe.Slice(actions, count)
+	stateSlice := unsafe.Slice(states, count)
+	rewardSlice := unsafe.Slice(rewards, count)
+	doneSlice := unsafe.Slice(dones, count)
+
+	for i := 0; i < count; i++ {
+		state, reward, done := env.Step(
+			int(actionSlice[i]),
+		)
+
+		stateSlice[i] = C.int(
+			encodePosition(state),
+		)
+
+		rewardSlice[i] = C.double(reward)
+
+		if done {
+			doneSlice[i] = 1
+		} else {
+			doneSlice[i] = 0
+		}
+
+		if done && i+1 < count {
+			env.Reset()
+		}
+	}
+
+	return C.int(count)
+}
+
 func encodePosition(position environment.Position) int {
 	return position.Row*env.Config.Cols + position.Col
 }
