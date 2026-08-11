@@ -90,6 +90,7 @@ extern "C" {
 extern void CreateEnvironment(int rows, int cols, double stepReward, double obstacleReward, double goalReward);
 extern int ResetEnvironment(void);
 extern int StepEnvironment(int action, double* reward, int* done);
+extern int RunBatch(int* actions, int actionCount, int* states, double* rewards, int* dones);
 
 #ifdef __cplusplus
 }
